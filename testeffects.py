@@ -36,7 +36,7 @@ class Sound:
         return get_step(f2) - get_step(f1)
 
     def __str__(self):
-        return f"This sound is {len(self.y)/fs:.2f}s long with a f0 of {self.f0:.1f} Hz"
+        return f"This sound is {len(self.y)/self.fs:.2f}s long with a f0 of {self.f0:.1f} Hz"
 
 
 #%%
@@ -46,7 +46,7 @@ import os
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "whistle.wav")
+file_path = os.path.join(dir_path, "mee.wav")
 sound = Sound(path=file_path)
 print(sound)
 #%% Absolute step shifts
@@ -55,13 +55,30 @@ notes = ['g4', 'A4', 'b4']
 sounds = [sound.pitch_shift_to(note) for note in notes]
 
 # music = [2,1,0,2,1,0,0,0,0,1,1,1,2,1,0]
-music = [0,0,0,0,0,0,0,0]
+music = [2,1,0]
 song = [sounds[n] for n in music]
 #%%
 
+
 for t in song:
-    sd.play(t, fs)
-    time.sleep(len(t)/fs * 0.8)
+    # stream.stop_stream()
+    sd.play(t, sound.fs)
+    time.sleep(len(t)/sound.fs)
 sd.stop()
+
+# %%
+import pyaudio
+
+p = pyaudio.PyAudio()
+stream = p.open(
+    format = p.get_format_from_width(4), 
+    channels = 1, 
+    rate = sound.fs, 
+    output = True
+)
+stream.write(sound.y)
+stream.close()
+p.terminate()
+
 
 # %%

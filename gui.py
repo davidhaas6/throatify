@@ -4,8 +4,8 @@ from stream import FrequencyStream, ToneStream
 import numpy as np
 
 
-class ToneGUI:
-    def __init__(self, background=(127,127,127)):
+class ToneCollector:
+    def __init__(self, notes, background=(127,127,127)):
         pygame.init()
 
         # GUI Initialization
@@ -21,29 +21,29 @@ class ToneGUI:
 
         # Preferences & configuration
         self.fps = 60
-        self.tone_duration = 3  # Seconds to play the tone for after user input
-        self.recording_duration = 5  # How many seconds to record
+        self.tone_duration = 1.5  # Seconds to play the tone for after user input
+        self.recording_duration = 2  # How many seconds to record
 
         # Text colors
         self.good_color = (100,255,50)
+        self.bad_color = None#(255,100,50)
         self.default_color = (0,0,0)
+
+        # Control variables
+        self.notes = notes
 
 
         # Control logic
         self.target_freq = 440
-        self.freq_tol = 5  # target bandwidth to the left or right
+        self.freq_tol = 0.02  # target bandwidth to the left or right
 
         self.input_hist = []
         self.window_len = self.fps / 5  # Average past 5 f0's
 
-        
+        self.tone_recordings = dict()
 
 
-        # Launch the gui and program
-        self.start()
-
-
-    def start(self):
+    def go(self):
         self.freqstream.start()
         try:
             total_frame_time = int(1000/self.fps)
@@ -61,7 +61,8 @@ class ToneGUI:
 
                 # Check if the person's in the target range
                 in_target = False
-                if self.target_freq - self.freq_tol < input_freq < self.target_freq + self.freq_tol:
+                lower,upper= self.target_freq * (1-self.freq_tol), self.target_freq *(1+self.freq_tol)
+                if lower < input_freq < upper:
                     in_target = True
                     #TODO: Note recording logic
 
@@ -75,7 +76,7 @@ class ToneGUI:
         finally:
             self.close()
 
-      
+
     def close(self):
         print("Stopping...")
         self.tonestream.stop()
@@ -136,9 +137,4 @@ class ToneGUI:
     
 
     def _play_tone(self):
-        self.tonestream.play(self.target_freq, self.tone_duration)
-
-
-
-if __name__ == "__main__":
-    ToneGUI()
+        self.tonestream.play(self.target_freq, self.tone_duration, blocking=True)

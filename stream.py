@@ -1,6 +1,6 @@
 import pyaudio
 import numpy as np
-
+import time
 
 class ToneStream:
     def __init__(self, volume=0.5, fs=44100, max_duration=60):
@@ -20,7 +20,7 @@ class ToneStream:
 
 
     def play(self, freq: float, duration: float, blocking=False):
-        """Plays a non-blocking tone for a specified duration
+        """Plays a tone for a specified duration
 
         Args:
             freq (float): the frequency of the tone in hz
@@ -90,14 +90,19 @@ class FrequencyStream:
         self.channels = channels
         self.chunk_size = int(self.fs / fft_rate) 
 
+        # Input stream config
         self.stream = None
-        self.stream_dt = np.dtype(np.int16).newbyteorder('<')
+        self.stream_dt = np.dtype(np.int16).newbyteorder('<')  # sample datatype
+
+        self.samples = []
         
         self.f0 = -1
 
 
     def start(self):
-        callback = lambda *args: self._callback(*args)
+        callback = lambda *args: self._callback(*args)  # workaround to use class method as callback
+        self.samples = []  # clear samples
+
         self.stream = self.audio.open(format=self.FORMAT,
                                     channels=self.channels,
                                     rate=self.fs,
@@ -126,8 +131,9 @@ class FrequencyStream:
 
 
     def _callback(self, input_data, frame_count, time_info, flags):
-        arr = np.frombuffer(input_data, dtype=self.stream_dt)
-        self.f0 = self._fund_freq(arr)
+        arr = np.frombuffer(input_data, dtype=self.stream_dt)  # get mic buffer
+        self.samples += arr.tolist()
+        self.f0 = self._fund_freq(arr)  # find fundamental freq
         return input_data, pyaudio.paContinue
 
 
@@ -139,11 +145,16 @@ if __name__ == '__main__':
         fstream.start()
 
         start = time.time()
-        while (time.time() - start) < 10:
+        while (time.time() - start) < 5:
             print(f"f0 = {round(fstream.f0)}Hz")
             pass
 
         fstream.stop()
+
+        import pandas
+        import matplotlib.pyplot as plt
+        pandas.Series(fstream.samples).plot()
+        plt.show()
 
         print("Finished recording")
     else:
@@ -152,7 +163,7 @@ if __name__ == '__main__':
 
         start = time.time()
         while (time.time() - start) < 6:
-            print(":I")
+            # print(":I")
             time.sleep(.1)
             pass
 
