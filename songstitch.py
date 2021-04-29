@@ -23,7 +23,7 @@ class SongSticher:
 		song_df = pd.DataFrame(song_data, columns=['start','end','note', 'velocity'])		
 
 		# Extract frequency information
-		to_hz = lambda notenum: 2 ** ((notenum - 69)/12) * 440
+		to_hz = lambda notenum: 2 ** ((notenum - 69 - 0)/12) * 440
 		song_df['freq'] = song_df.note.map(to_hz)		
 
 		# Calculate note duration
@@ -39,14 +39,15 @@ class SongSticher:
 	#		you just have to chop the sound in the right place and stitch it with a different freq sound.
 	#		prolly a clever way to deal with rests too. like continuing from where you left off
 	def map_sound(self):
+		fs = self.sound.fs
+
 		# create empty samples array for the output song
-		song_length = self.song_df.end.iloc[-1]
-		total_samples = int(np.ceil(song_length * self.sound.fs))
+		song_length = self.song_df.end.iloc[-1] + 3
+		total_samples = int(np.ceil(song_length * fs))
 		out_song = np.zeros((total_samples,), dtype=self.sound.y.dtype)
 
 		# generate a sound for each pitch/duration note present in the song
 		freq_groups = self.song_df.groupby(by=['freq'])['round_duration']
-
 		sounds = dict()
 		for freq,durations in freq_groups:
 			# generate the base pitch shifted
@@ -74,22 +75,119 @@ class SongSticher:
 
 		return out_song
 
+	def map_sound_2(self):
+		fs = self.sound.fs
+
+		# create empty samples array for the output song
+		song_length = self.song_df.end.iloc[-1] + 3
+		total_samples = int(np.ceil(song_length * fs))
+		out_song = np.zeros((total_samples,), dtype=self.sound.y.dtype)
+
+		# keep track of the corresponding input sample index for each sample in the song
+		in_sample_idx = np.zeros_like(out_song)
+		in_sample_idx[:] = -1
+
+		# generate a sound for each pitch/duration note present in the song
+		sounds = dict()
+		for freq in set(self.song_df.freq):
+			sounds[freq] = self.sound.pitch_shift_to(freq)
+
+		# place each sound into the output array, corresponding with the notes
+		for _,row in self.song_df.iterrows():
+			cur_sound = sounds[row['freq']]
+			duration_samples = int(row['round_duration'] * fs)  # the number of samples this sound byte will fill
+
+			out_start_sample = int(row['start'] * fs)
+			out_end_sample = out_start_sample + duration_samples
+
+			# Find the sample the last sound byte ended with
+			prev_idxs = in_sample_idx[:out_start_sample+1]
+			prev_idxs = prev_idxs[prev_idxs != -1]
+			in_start_sample = int(prev_idxs[-1]) if len(prev_idxs) > 0 else 0
+
+			chopped_end_sample = min(in_start_sample + duration_samples, len(cur_sound))
+
+			# calculate needed length for this byte and extend if necessary
+			chopped_len = chopped_end_sample - in_start_sample
+			chopped_idxs = np.arange(in_start_sample, chopped_end_sample)
+			chopped_sound = cur_sound[in_start_sample:chopped_end_sample]
+
+			# form sound: the end sound that will be inserted into the output audio
+			# form sound indicies: indicies for the samples of the `sound` so the next sound knows where to start from
+			if duration_samples > chopped_len:
+				additional_samples = duration_samples - chopped_len
+				extended_sound, extended_idxs = Sound.sample_cut_loop(cur_sound, additional_samples)
+
+				# append the extended sound and its indicies onto the chopped sound
+				sound = np.hstack((chopped_sound, extended_sound))
+				sound_idxs = np.hstack( (chopped_idxs, extended_idxs) )
+			else:
+				sound = chopped_sound
+				sound_idxs = chopped_idxs
+
+			# check to make sure we came out w/ the right duration
+			if len(sound) != duration_samples: 
+				print(len(sound),duration_samples, len(sound) - duration_samples)
+
+			out_song[out_start_sample:out_end_sample] += sound
+			in_sample_idx[out_start_sample:out_end_sample] = sound_idxs
+			
+		return out_song, in_sample_idx
+
 
 # %%
-if __name__ == "__main__":
-	dir_path = os.path.dirname(os.path.realpath(__file__))
-	file_path = os.path.join(dir_path, "sounds/david.wav")
-	sound = Sound(path=file_path, trim=True)
-	
-	sticher = SongSticher('songs/piano_man.mid', sound)
-	sitched_song = sticher.map_sound()
-	print("song mapped")
+dir_path = os.path.dirname(os.path.realpath(__file__))
+file_path = os.path.join(dir_path, "sounds/nis.wav")
+sound = Sound(path=file_path, trim=True)
 
-	import sounddevice as sd
-	start, length = 0,10
-	sd.play(sitched_song[sound.fs*start:sound.fs*(start+length)], sound.fs)
-	import time
-	time.sleep(length)
-	print("done")
+ss = SongSticher('songs/mii_channel.mid', sound)
+
+#%%
+sitched_song = ss.map_sound()
+# sitched_song,i = ss.map_sound_2()
+# idxs = pd.Series(i)
+# idxs[:sound.fs*3].plot()
+
+print("song mapped")
+
+#%%
+import sounddevice as sd
+start, length = 0,30
+segment = sitched_song[sound.fs*start:sound.fs*(start+length)]
+sd.play(segment, sound.fs)
+import time
+time.sleep(length)
+print("done")
 
 # %%
+import librosa.display
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
+y = segment
+sr = sound.fs
+D = librosa.amplitude_to_db(np.abs(librosa.stft(y)), ref=np.max)
+img = librosa.display.specshow(D, y_axis='linear', x_axis='time',
+                               sr=sr, ax=ax[0])
+ax[0].set(title='Linear-frequency power spectrogram')
+ax[0].label_outer()
+
+hop_length = 1024
+D = librosa.amplitude_to_db(np.abs(librosa.stft(y, hop_length=hop_length)),
+                            ref=np.max)
+librosa.display.specshow(D, y_axis='log', sr=sr, hop_length=hop_length,
+                         x_axis='time', ax=ax[1])
+ax[1].set(title='Log-frequency power spectrogram')
+ax[1].label_outer()
+fig.colorbar(img, ax=ax, format="%+2.f dB")
+#%%
+
+import soundfile as sf
+sf.write('mii.wav', segment, sound.fs, subtype='PCM_24')
+# %%
+
+
+# TODO: what if you took it a step farther and approximated f0 for each window of a real mp3/song and then
+#		tuned the audio to that window
+
+# TODO: be able to select which instrument you want to map ur voice onto 
+#		and map multiple voices to different instruments

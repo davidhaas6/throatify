@@ -9,13 +9,13 @@ import os
 
 #%%
 dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "sounds/david.wav")
+file_path = os.path.join(dir_path, "sounds/pacer.wav")
 sound = Sound(path=file_path, trim=False)
 print(sound)
 sd.play(sound.y, sound.fs)
 #%% Absolute step shifts
 
-notes = ['g3', 'A3', 'b3']
+notes = ['g2', 'A2', 'b2']
 sounds = [sound.pitch_shift_to(librosa.note_to_hz(note)) for note in notes]
 
 # music = [2,1,0,2,1,0,0,0,0,1,1,1,2,1,0]
@@ -29,8 +29,9 @@ for t in song:
 sd.stop()
 
 # %%
-stretched = sound.stretch(0.5)
+stretched = Sound.extend(sound.y, sound.fs, 0.2)
 sd.play(stretched, sound.fs)
+print(len(stretched)/sound.fs)
 time.sleep(len(stretched)/sound.fs)
 sd.stop()
 

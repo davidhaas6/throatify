@@ -59,6 +59,46 @@ class Sound:
     def time_stretch(y,rate):
         return librosa.effects.time_stretch(y, rate)
 
+    @staticmethod
+    def time_extend(y, fs, new_duration: float):
+        """ Loops and cuts an audio track so it lasts `new_duration` seconds
+
+        Args:
+            y (ndarray): audio
+            fs (float): sampling rate
+            new_duration (float): number of seconds to fit sound into
+
+        Returns:
+            ndarray: extended sound array
+        """
+        additional_samples = int(new_duration * fs)  # total amount of samples to add onto the track
+
+        repeats = additional_samples // len(y)  # number of times to repeat the whole track
+        tail_samples = additional_samples % len(y) # number of samples to tail on at the end
+
+        # extended = np.hstack( (y, np.zeros((additonal_samples,))) )
+        extended = np.tile(y, repeats)
+        extended = np.hstack( (extended, y[:tail_samples]) )
+
+        return extended
+        # while additional_samples - len(y) > 0:
+
+    @staticmethod
+    def sample_cut_loop(y, num_samples):
+        repeats = num_samples // len(y)  # number of times to repeat the whole track
+        tail_samples = num_samples % len(y) # number of samples to tail on at the end
+
+        # extended = np.hstack( (y, np.zeros((additonal_samples,))) )
+        extended = np.tile(y, repeats)
+        extended = np.hstack( (extended, y[:tail_samples]) )
+
+        # keep track of the indexes too
+        y_idx = np.arange(len(y))
+        extended_idx = np.tile(y_idx, repeats)
+        extended_idx = np.hstack( (extended_idx, y_idx[:tail_samples]) )
+
+        return extended, extended_idx
+
     def __str__(self):
         return f"This sound is {len(self.y)/self.fs:.2f}s long with a f0 of {self.f0:.1f} Hz"
 
