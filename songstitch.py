@@ -58,61 +58,29 @@ class SongSticher:
 			end_sample = start_sample + len(cur_sound)
 
 			# Place it in the output
-			out_song[start_sample:end_sample] += cur_sound
+			if end_sample < len(out_song):
+				out_song[start_sample:end_sample] += cur_sound
+			else:
+				# Adjust for sounds rolling over the total song length
+				end_sample = len(out_song)
+				out_song[start_sample:end_sample] += cur_sound[:end_sample-start_sample]
+				break
 
 		return out_song
 
 
-#%%
-import os
-dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "mee.wav")
-sound = Sound(path=file_path)
-
-ss = SongSticher('songs/mii_channel.mid', sound)
-ss.song_df
-#%% empty array
-length = ss.song_df.end.iloc[-1] + 3 # Song length in seconds + padding
-total_samples = int(np.ceil(length * sound.fs))
-out_song = np.zeros((total_samples,),dtype=sound.y.dtype)
-
-
-#%% collect sound types
-from tqdm import tqdm
-freq_groups = ss.song_df.groupby(by=['freq'])['round_duration']
-
-sounds = dict()
-for freq,durations in tqdm(freq_groups):
-	# generate a sound for each frequency/duration combo
-	freq_shifted = sound.pitch_shift_to(freq)
-	for t in set(durations):
-		rate = sound.duration / t
-		sounds[(freq,t)] = Sound.time_stretch(freq_shifted, rate)
-
-# %%
-
-for _,row in ss.song_df.iterrows():
-	start_sample = int(row['start'] * sound.fs)
-	cur_sound = sounds[(row['freq'], row['round_duration'])]
-	end_sample = start_sample + len(cur_sound)
-	# print(start_sample,end_sample,row['start'],row['round_duration'], len(cur_sound)/sound.fs)
-	out_song[start_sample:end_sample] += cur_sound
-
-
-# %%
-import sounddevice as sd
-sd.play(out_song[:sound.fs*15], sound.fs)
-
-
 # %%
 dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "mee.wav")
+file_path = os.path.join(dir_path, "sounds/whistle.wav")
 sound = Sound(path=file_path)
 
 sticher = SongSticher('songs/toto_africa.mid', sound)
 sitched_song = sticher.map_sound()
+print("song mapped")
 
 import sounddevice as sd
-sd.play(sitched_song[:sound.fs*15], sound.fs)
+sd.play(sitched_song[:sound.fs*10], sound.fs)
+import time
+time.sleep(10)
 print("done")
 # %%
