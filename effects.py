@@ -4,7 +4,7 @@ import math  # log
 
 
 class Sound:
-    def __init__(self, waveform=None, fs=None, path=None):
+    def __init__(self, waveform=None, fs=None, path=None, trim=True, f0=True):
         if path is not None:
             self.load(path)
         elif waveform is not None and fs is not None:
@@ -12,8 +12,10 @@ class Sound:
             self.fs = fs
         else:
             raise TypeError("Must provide either a waveform + sampling rate or a file path")
-        
-        self.f0 = self.estimate_f0()
+
+        if trim: self.y = librosa.effects.trim(self.y)[0]
+        self.f0 = self.estimate_f0() if f0 else None
+
         self.duration = len(self.y) / self.fs
     
     def pitch_shift_to(self, target_freq: float):

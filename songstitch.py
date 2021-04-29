@@ -32,6 +32,12 @@ class SongSticher:
 		
 		return song_df
 
+	# TODO: What if you did like a sliding pitch shift so each sound is the same length
+	# 		instead of having short and fast versions of the sound. you could overlay multiple
+	#		different copies too when there's >1 note playing at once.
+	#		you could also still just calculate the shift K times for K different frequencies in the song.
+	#		you just have to chop the sound in the right place and stitch it with a different freq sound.
+	#		prolly a clever way to deal with rests too. like continuing from where you left off
 	def map_sound(self):
 		# create empty samples array for the output song
 		song_length = self.song_df.end.iloc[-1]
@@ -70,17 +76,20 @@ class SongSticher:
 
 
 # %%
-dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "sounds/whistle.wav")
-sound = Sound(path=file_path)
+if __name__ == "__main__":
+	dir_path = os.path.dirname(os.path.realpath(__file__))
+	file_path = os.path.join(dir_path, "sounds/david.wav")
+	sound = Sound(path=file_path, trim=True)
+	
+	sticher = SongSticher('songs/piano_man.mid', sound)
+	sitched_song = sticher.map_sound()
+	print("song mapped")
 
-sticher = SongSticher('songs/toto_africa.mid', sound)
-sitched_song = sticher.map_sound()
-print("song mapped")
+	import sounddevice as sd
+	start, length = 0,10
+	sd.play(sitched_song[sound.fs*start:sound.fs*(start+length)], sound.fs)
+	import time
+	time.sleep(length)
+	print("done")
 
-import sounddevice as sd
-sd.play(sitched_song[:sound.fs*10], sound.fs)
-import time
-time.sleep(10)
-print("done")
 # %%
