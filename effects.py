@@ -1,9 +1,14 @@
+from code import interact
 import numpy as np
 import librosa 
 import math  # log
+import sounddevice as sd  # playing
 
 
 class Sound:
+    _C2_HZ = librosa.note_to_hz('C2')
+    _C7_HZ = librosa.note_to_hz('C7')
+
     def __init__(self, waveform=None, fs=None, path=None, trim=True, f0=True):
         if path is not None:
             self.load(path)
@@ -42,12 +47,37 @@ class Sound:
         return Sound.time_stretch(self.y, rate)
 
     def estimate_f0(self):
-        fund_freqs, _, _ = librosa.pyin(self.y, sr=self.fs, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'))
+        fund_freqs, _, _ = librosa.pyin(self.y, sr=self.fs, fmin=Sound._C2_HZ, fmax=Sound._C7_HZ)
+        # fund freqs is a time sequenced array of f0s
         fund_freqs = fund_freqs[~np.isnan(fund_freqs)]
+        # TODO: IS mean the best way for this?
         return np.mean(fund_freqs)
+
+    # FIXME: pyin does this........
+    # def timesample_f0(self, sample_ms=100, overlap_pct=0.1):
+    #     sample_s = (sample_ms / 1000)
+    #     sample_width = int(sample_s * self.fs)
+    #     overlap_width = int(overlap_pct * sample_s * self.fs)
+    #     fft_len = sample_ms
+
+    #     start_samples = np.arange(len(self.y), step=sample_width-overlap_width)
+        
+
+    #     get_f0 = lambda x: librosa.pyin(x, sr=self.fs, fmin=Sound._C2_HZ, fmax=Sound._C7_HZ)[0]
+    #     samples = [self.y[i:i+sample_width] for i in start_samples]
+    #     freqs = list(map(get_f0, samples))
+        # TODO: turn freqs into numpy array
+        # fill in nans as 0s or smtn
+        # in a separate function
+        # gaussian smoooth that bish out
+        # then create noises to them.
+        # a sweet harmoney indeeed
 
     def load(self, path):
         self.y, self.fs = librosa.load(path)
+
+    def play(self,blocking=False):
+        sd.play(self.y, self.fs, blocking=blocking)
 
     @staticmethod
     def steps_between_freqs(f1,f2):
@@ -99,6 +129,12 @@ class Sound:
 
         return extended, extended_idx
 
+
     def __str__(self):
         return f"This sound is {len(self.y)/self.fs:.2f}s long with a f0 of {self.f0:.1f} Hz"
 
+
+if __name__ == "__main__":
+    sound = Sound(path="sounds/mee.wav")
+    # sound.play(True)
+    sound.timesample_f0()

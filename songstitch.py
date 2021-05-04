@@ -5,15 +5,21 @@ import pandas as pd
 import pretty_midi
 
 # takes in sound and midi and outputs a SONDified midi song
+# todo: add suport for possible: 
+# 	mapping multiple sounds to mulitple instruments
+#	different methods for splicing in sounds
+#	joining instruments into one df
+#	shifting keys
+
 class SongSticher:
-	def __init__(self, midi_path, sound):
-		self.song_df = self.extract_song_data(midi_path)
+	def __init__(self, midi_path, sound, midi_instrument=0):
+		self.song_df = self.extract_song_data(midi_path, midi_instrument)
 		self.sound = sound
 
-	def extract_song_data(self, midi_path):
+	def extract_song_data(self, midi_path, midi_instrument):
 		# Read MIDI and extract instrument
 		midi_data = pretty_midi.PrettyMIDI(midi_path)
-		mapping_instrument = midi_data.instruments[0]  # instrument to map the sounds to	
+		mapping_instrument = midi_data.instruments[midi_instrument]  # instrument to map the sounds to	
 
 		# Form an array of the song parameters in question
 		attrs = ['start', 'end', 'pitch', 'velocity']
@@ -23,7 +29,8 @@ class SongSticher:
 		song_df = pd.DataFrame(song_data, columns=['start','end','note', 'velocity'])		
 
 		# Extract frequency information
-		to_hz = lambda notenum: 2 ** ((notenum - 69 - 0)/12) * 440
+		key_shift = 0  # number of steps to shift notes by
+		to_hz = lambda notenum: 2 ** ((notenum + key_shift - 69)/12) * 440
 		song_df['freq'] = song_df.note.map(to_hz)		
 
 		# Calculate note duration
@@ -136,8 +143,9 @@ class SongSticher:
 
 
 # %%
+import os
 dir_path = os.path.dirname(os.path.realpath(__file__))
-file_path = os.path.join(dir_path, "sounds/nis.wav")
+file_path = os.path.join(dir_path, "sounds/mee.wav")
 sound = Sound(path=file_path, trim=True)
 
 ss = SongSticher('songs/mii_channel.mid', sound)
@@ -145,44 +153,30 @@ ss = SongSticher('songs/mii_channel.mid', sound)
 #%%
 sitched_song = ss.map_sound()
 # sitched_song,i = ss.map_sound_2()
-# idxs = pd.Series(i)
-# idxs[:sound.fs*3].plot()
+idxs = pd.Series(i)
+idxs[:sound.fs*3].plot()
 
 print("song mapped")
-
 #%%
-import sounddevice as sd
-start, length = 0,30
-segment = sitched_song[sound.fs*start:sound.fs*(start+length)]
-sd.play(segment, sound.fs)
-import time
-time.sleep(length)
-print("done")
+idxs = pd.Series(i)
+idxs[:sound.fs*3].plot(xlabel='out samples', ylabel='input sound samples')
+# plt.xlabel('samples')
+#%%
+idxs = pd.Series(sitched_song)
+idxs[:sound.fs*3].plot()
+#%%
+# import sounddevice as sd
+# start, length = 0,30
+# segment = sitched_song[sound.fs*start:sound.fs*(start+length)]
+# sd.play(segment, sound.fs)
+# import time
+# time.sleep(length)
+# print("done")
 
-# %%
-import librosa.display
-import matplotlib.pyplot as plt
-fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
-y = segment
-sr = sound.fs
-D = librosa.amplitude_to_db(np.abs(librosa.stft(y)), ref=np.max)
-img = librosa.display.specshow(D, y_axis='linear', x_axis='time',
-                               sr=sr, ax=ax[0])
-ax[0].set(title='Linear-frequency power spectrogram')
-ax[0].label_outer()
-
-hop_length = 1024
-D = librosa.amplitude_to_db(np.abs(librosa.stft(y, hop_length=hop_length)),
-                            ref=np.max)
-librosa.display.specshow(D, y_axis='log', sr=sr, hop_length=hop_length,
-                         x_axis='time', ax=ax[1])
-ax[1].set(title='Log-frequency power spectrogram')
-ax[1].label_outer()
-fig.colorbar(img, ax=ax, format="%+2.f dB")
 #%%
 
 import soundfile as sf
-sf.write('mii.wav', segment, sound.fs, subtype='PCM_24')
+sf.write('out/mii2.wav', sitched_song, sound.fs, subtype='PCM_24')
 # %%
 
 
